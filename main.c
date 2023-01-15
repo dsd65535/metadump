@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 void print_error(
     const char *filepath,
@@ -57,12 +58,63 @@ int dump_statx(
     return 0;
 }
 
+int dump_ioctl(
+    const char *filepath,
+    FILE *datafile,
+    int *datafile_pos,
+    struct ioctl_data *ioc
+) {
+    int ret;
+    int fd;
+
+    fd = open(filepath, O_RDONLY | O_NONBLOCK | O_LARGEFILE | O_NOFOLLOW);
+
+    if (fd < 0) {
+        ret = fwrite(&errno, sizeof(errno), 1, datafile);
+        if (ret != 1) {
+            print_error(filepath, "fwrite", ret);
+            return -1;
+        }
+        *datafile_pos += sizeof(errno);
+        return 0;
+    }
+    ret = fwrite(&NO_ERROR, sizeof(errno), 1, datafile);
+    if (ret != 1) {
+        print_error(filepath, "fwrite", ret);
+        return -1;
+    }
+    *datafile_pos += sizeof(errno);
+
+    memset(ioc, 0x00, sizeof(*ioc));
+
+    ioc->flags_ret = ioctl(fd, FS_IOC_GETFLAGS, &ioc->flags_buff);
+    ioc->flags_errno = errno;
+
+    ioc->version_ret = ioctl(fd, FS_IOC_GETVERSION, &ioc->version_buff);
+    ioc->version_errno = errno;
+
+    ioc->xattr_ret = ioctl(fd, FS_IOC_FSGETXATTR, &ioc->xattr_buff);
+    ioc->xattr_errno = errno;
+
+    ret = fwrite(ioc, sizeof(*ioc), 1, datafile);
+    if (ret != 1) {
+        print_error(filepath, "fwrite", ret);
+        return -1;
+    }
+    *datafile_pos += sizeof(*ioc);
+
+    close(fd);
+
+    return 0;
+}
+
 int dump_dir(
     const char *filepath,
     FILE *treefile,
     FILE *datafile,
     int *datafile_pos,
-    struct statx *stx
+    struct statx *stx,
+    struct ioctl_data *ioc
 );
 
 int dump_file(
@@ -70,7 +122,8 @@ int dump_file(
     FILE *treefile,
     FILE *datafile,
     int *datafile_pos,
-    struct statx *stx
+    struct statx *stx,
+    struct ioctl_data *ioc
 ) {
     int ret;
 
@@ -79,8 +132,13 @@ int dump_file(
         return ret;
     }
 
+    ret = dump_ioctl(filepath, datafile, datafile_pos, ioc);
+    if (ret) {
+        return ret;
+    }
+
     if S_ISDIR(stx->stx_mode) {
-        ret = dump_dir(filepath, treefile, datafile, datafile_pos, stx);
+        ret = dump_dir(filepath, treefile, datafile, datafile_pos, stx, ioc);
         if (ret) {
             return ret;
         }
@@ -94,7 +152,8 @@ int dump_dir(
     FILE *treefile,
     FILE *datafile,
     int *datafile_pos,
-    struct statx *stx
+    struct statx *stx,
+    struct ioctl_data *ioc
 ) {
     int ret;
     struct dirent *de;
@@ -140,7 +199,7 @@ int dump_dir(
         }
 
         sprintf(fullpath, "%s/%s", filepath, de->d_name);
-        ret = dump_file(fullpath, treefile, datafile, datafile_pos, stx);
+        ret = dump_file(fullpath, treefile, datafile, datafile_pos, stx, ioc);
         if (ret) {
             return ret;
         }
@@ -164,6 +223,7 @@ int main(int argc, char *argv[]) {
     FILE *datafile = fopen(argv[2], "wb");
     int datafile_pos = DATA_OFFSET;
     struct statx stx;
+    struct ioctl_data ioc;
 
     if (argc != 4) {
         printf("Exactly 3 arguments required\n");
@@ -192,7 +252,7 @@ int main(int argc, char *argv[]) {
     }
     datafile_pos += sizeof(*&VERSION);
 
-    ret = dump_file(argv[3], treefile, datafile, &datafile_pos, &stx);
+    ret = dump_file(argv[3], treefile, datafile, &datafile_pos, &stx, &ioc);
     if (ret) {
         return ret;
     }

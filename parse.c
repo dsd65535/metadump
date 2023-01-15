@@ -196,6 +196,78 @@ int parse_statx(
     return 0;
 }
 
+int parse_ioctl(
+    FILE *datafile
+) {
+    int ret;
+    int open_errno;
+    struct ioctl_data ioc;
+
+    ret = fread(&open_errno, sizeof(errno), 1, datafile);
+    if (ret != 1) {
+        print_error("fread", ret);
+        return -1;
+    }
+
+    printf("\nFS_IOC:\n");
+
+    if (open_errno != NO_ERROR) {
+        printf(" Open Error: %i \n", open_errno);
+        return 0;
+    }
+
+    ret = fread(&ioc, sizeof(ioc), 1, datafile);
+    if (ret != 1) {
+        print_error("fread", ret);
+        return -1;
+    }
+
+    if (ioc.flags_ret) {
+        printf(
+            " FS_IOC_GETFLAGS failed with return code %i and errno %i\n",
+            ioc.flags_ret,
+            ioc.flags_errno
+        );
+    } else {
+        printf(" GETFLAGS:\t");
+        for (int idx = 0; idx < 8 * sizeof(ioc.flags_buff); idx++) {
+            if (ioc.flags_buff & (1 << idx)) {
+                printf("+");
+            } else {
+                printf("-");
+            }
+        }
+        printf("\n");
+    }
+
+    if (ioc.version_ret) {
+        printf(
+            " FS_IOC_GETVERSION failed with return code %i and errno %i\n",
+            ioc.version_ret,
+            ioc.version_errno
+        );
+    } else {
+        printf(" GETVERSION:\t%u\n", ioc.version_buff);
+    }
+
+    if (ioc.xattr_ret) {
+        printf(
+            " FS_IOC_FSGETXATTR: failed with return code %i and errno %i\n",
+            ioc.xattr_ret,
+            ioc.xattr_errno
+        );
+    } else {
+        printf(" FSGETXATTR:\n");
+        printf("  xflags:\t%u\n", ioc.xattr_buff.fsx_xflags);
+        printf("  extsize:\t%u\n", ioc.xattr_buff.fsx_extsize);
+        printf("  nextents:\t%u\n", ioc.xattr_buff.fsx_nextents);
+        printf("  projid:\t%u\n", ioc.xattr_buff.fsx_projid);
+        printf("  cowextsize:\t%u\n", ioc.xattr_buff.fsx_cowextsize);
+    }
+
+    return 0;
+}
+
 int main(
     int argc,
     char *argv[]
@@ -258,6 +330,11 @@ int main(
     }
 
     ret = parse_statx(datafile);
+    if (ret) {
+        return ret;
+    }
+
+    ret = parse_ioctl(datafile);
     if (ret) {
         return ret;
     }
