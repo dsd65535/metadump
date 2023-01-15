@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "common.h"
+#include "statx-wrapper.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,7 +10,6 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/stat.h>
 
 void print_error(
     const char *filepath,
@@ -26,12 +26,43 @@ void print_error(
     );
 }
 
+int dump_statx(
+    const char *filepath,
+    FILE *datafile,
+    int *datafile_pos,
+    struct statx *stx
+) {
+    int ret;
+
+    memset(stx, 0xbf, sizeof(*stx));
+    ret = statx(
+        AT_FDCWD,
+        filepath,
+        AT_NO_AUTOMOUNT | AT_SYMLINK_NOFOLLOW | AT_STATX_FORCE_SYNC,
+        STATX_ALL,
+        stx
+    );
+    if (ret) {
+        print_error(filepath, "statx", ret);
+        return -1;
+    }
+
+    ret = fwrite(stx, sizeof(*stx), 1, datafile);
+    if (ret != 1) {
+        print_error(filepath, "fwrite", ret);
+        return -1;
+    }
+    *datafile_pos += sizeof(*stx);
+
+    return 0;
+}
+
 int dump_dir(
     const char *filepath,
     FILE *treefile,
     FILE *datafile,
     int *datafile_pos,
-    struct stat *st
+    struct statx *stx
 );
 
 int dump_file(
@@ -39,18 +70,17 @@ int dump_file(
     FILE *treefile,
     FILE *datafile,
     int *datafile_pos,
-    struct stat *st
+    struct statx *stx
 ) {
     int ret;
 
-    ret = fstatat(AT_FDCWD, filepath, st, AT_NO_AUTOMOUNT | AT_SYMLINK_NOFOLLOW);
+    ret = dump_statx(filepath, datafile, datafile_pos, stx);
     if (ret) {
-        print_error(filepath, "stat", ret);
-        return -1;
+        return ret;
     }
 
-    if S_ISDIR(st->st_mode) {
-        ret = dump_dir(filepath, treefile, datafile, datafile_pos, st);
+    if S_ISDIR(stx->stx_mode) {
+        ret = dump_dir(filepath, treefile, datafile, datafile_pos, stx);
         if (ret) {
             return ret;
         }
@@ -64,7 +94,7 @@ int dump_dir(
     FILE *treefile,
     FILE *datafile,
     int *datafile_pos,
-    struct stat *st
+    struct statx *stx
 ) {
     int ret;
     struct dirent *de;
@@ -110,7 +140,7 @@ int dump_dir(
         }
 
         sprintf(fullpath, "%s/%s", filepath, de->d_name);
-        ret = dump_file(fullpath, treefile, datafile, datafile_pos, st);
+        ret = dump_file(fullpath, treefile, datafile, datafile_pos, stx);
         if (ret) {
             return ret;
         }
@@ -133,7 +163,7 @@ int main(int argc, char *argv[]) {
     FILE *treefile = fopen(argv[1], "wb");
     FILE *datafile = fopen(argv[2], "wb");
     int datafile_pos = DATA_OFFSET;
-    struct stat st;
+    struct statx stx;
 
     if (argc != 4) {
         printf("Exactly 3 arguments required\n");
@@ -162,7 +192,7 @@ int main(int argc, char *argv[]) {
     }
     datafile_pos += sizeof(*&VERSION);
 
-    ret = dump_file(argv[3], treefile, datafile, &datafile_pos, &st);
+    ret = dump_file(argv[3], treefile, datafile, &datafile_pos, &stx);
     if (ret) {
         return ret;
     }

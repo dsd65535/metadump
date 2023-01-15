@@ -1,4 +1,5 @@
 #include "common.h"
+#include "statx-wrapper.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -118,6 +119,83 @@ int find_file(
     return 0;
 }
 
+void check_statx_mask(
+    int *stx_mask,
+    int location
+) {
+    if (*stx_mask & location) {
+        printf(" (valid)\n");
+    } else {
+        printf(" (invalid)\n");
+    }
+}
+
+int parse_statx(
+    FILE *datafile
+) {
+    int ret;
+    struct statx stx;
+
+    ret = fread(&stx, sizeof(stx), 1, datafile);
+    if (ret != 1) {
+        print_error("fread", ret);
+        return -1;
+    }
+    printf("\nStatX:\n");
+
+    printf(" Size:  \t%u", stx.stx_size);
+    check_statx_mask(&stx.stx_mask, STATX_SIZE);
+    printf(" Blocks:\t%u", stx.stx_blocks);
+    check_statx_mask(&stx.stx_mask, STATX_BLOCKS);
+
+    printf(" Inode: \t%u", stx.stx_ino);
+    check_statx_mask(&stx.stx_mask, STATX_INO);
+    printf(" Links: \t%u", stx.stx_nlink);
+    check_statx_mask(&stx.stx_mask, STATX_NLINK);
+
+    printf(" Type:  \t%o", stx.stx_mode & S_IFMT);
+    check_statx_mask(&stx.stx_mask, STATX_TYPE);
+    printf(" Mode:  \t%o", stx.stx_mode & ~S_IFMT);
+    check_statx_mask(&stx.stx_mask, STATX_MODE);
+    printf(" Uid:   \t%u", stx.stx_uid);
+    check_statx_mask(&stx.stx_mask, STATX_UID);
+    printf(" Gid:   \t%u", stx.stx_gid);
+    check_statx_mask(&stx.stx_mask, STATX_GID);
+
+    printf(" Access:\t%i.%09u", stx.stx_atime.tv_sec, stx.stx_atime.tv_nsec);
+    check_statx_mask(&stx.stx_mask, STATX_ATIME);
+    printf(" Modify:\t%i.%09u", stx.stx_mtime.tv_sec, stx.stx_mtime.tv_nsec);
+    check_statx_mask(&stx.stx_mask, STATX_MTIME);
+    printf(" Change:\t%i.%09u", stx.stx_ctime.tv_sec, stx.stx_ctime.tv_nsec);
+    check_statx_mask(&stx.stx_mask, STATX_CTIME);
+    printf(" Birth: \t%i.%09u", stx.stx_btime.tv_sec, stx.stx_btime.tv_nsec);
+    check_statx_mask(&stx.stx_mask, STATX_BTIME);
+
+    printf(" IO Block:\t%u\n", stx.stx_blksize);
+    printf(" Device:\t%02x:%02x\n", stx.stx_dev_major, stx.stx_dev_minor);
+    printf(" Rdev:  \t%02x:%02x\n", stx.stx_rdev_major, stx.stx_rdev_minor);
+
+    printf(" Flags:  \t");
+    for (int idx = 0; idx < 8 * sizeof(stx.stx_attributes_mask); idx++) {
+        if (stx.stx_attributes_mask & (1 << idx)) {
+            if (stx.stx_attributes & (1 << idx)) {
+                printf("+");
+            } else {
+                printf("-");
+            }
+        } else {
+            if (stx.stx_attributes & (1 << idx)) {
+                printf("X");
+            } else {
+                printf(".");
+            }
+        }
+    }
+    printf("\n");
+
+    return 0;
+}
+
 int main(
     int argc,
     char *argv[]
@@ -177,6 +255,11 @@ int main(
     if (ret) {
         print_error("fseek", ret);
         return -1;
+    }
+
+    ret = parse_statx(datafile);
+    if (ret) {
+        return ret;
     }
 
     fclose(datafile);

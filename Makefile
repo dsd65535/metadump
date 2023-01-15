@@ -4,10 +4,13 @@
 
 all: metadump parse draw_tree
 
-metadump: main.o
+metadump: main.o statx-wrapper.o
 	$(CC) $(LDFLAGS) $^ $(LOADLIBES) $(LDLIBS) -o $@
 
 main.o: main.c
+	$(CC) -c $(CPPFLAGS) $(CFLAGS) $^ -o $@
+
+statx-wrapper.o: statx-wrapper.c
 	$(CC) -c $(CPPFLAGS) $(CFLAGS) $^ -o $@
 
 parse: parse.o
