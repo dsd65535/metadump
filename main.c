@@ -10,7 +10,26 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <linux/fs.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
+
+ssize_t llistxattr(
+    const char *path,
+    char *list,
+    size_t size
+) {
+    return syscall(__NR_llistxattr, path, list, size);
+}
+
+ssize_t lgetxattr(
+    const char *path,
+    const char *name,
+    void *value,
+    size_t size
+) {
+    return syscall(__NR_lgetxattr, path, name, value, size);
+}
 
 void print_error(
     const char *filepath,
@@ -108,6 +127,94 @@ int dump_ioctl(
     return 0;
 }
 
+int dump_xattr(
+    const char *filepath,
+    FILE *datafile,
+    int *datafile_pos
+) {
+    int ret;
+    char *buff0;
+    char *buff1;
+    ssize_t length0;
+    ssize_t length1;
+
+    length0 = llistxattr(filepath, NULL, 0);
+    if (length0 < 0) {
+        print_error(filepath, "llistxattr", length0);
+        return -1;
+    }
+
+    ret = fwrite(&length0, sizeof(length0), 1, datafile);
+    if (ret != 1) {
+        print_error(filepath, "fwrite", ret);
+        return -1;
+    }
+    *datafile_pos += sizeof(length0);
+
+    buff0 = malloc(length0);
+    if (buff0 == NULL) {
+        fprintf(stderr, "malloc() failed with errno %i for %s\n", errno, filepath);
+        return -1;
+    }
+
+    ret = llistxattr(filepath, buff0, length0);
+    if (ret != length0) {
+        print_error(filepath, "llistxattr", ret);
+        return -1;
+    }
+
+    ret = fwrite(buff0, 1, length0, datafile);
+    if (ret != length0) {
+        print_error(filepath, "fwrite", ret);
+        return -1;
+    }
+    *datafile_pos += length0;
+
+    for (char *name = buff0; name != buff0 + length0; name = strchr(name, '\0') + 1) {
+        if (name[0] == '\0') {
+            continue;
+        }
+
+        length1 = lgetxattr(filepath, name, NULL, 0);
+        if (length1 < 0) {
+            print_error(filepath, "lgetxattr", length1);
+            return -1;
+        }
+
+        ret = fwrite(&length1, sizeof(length1), 1, datafile);
+        if (ret != 1) {
+            print_error(filepath, "fwrite", ret);
+            return -1;
+        }
+        *datafile_pos += sizeof(length1);
+
+        buff1 = malloc(length1);
+        if (buff1 == NULL) {
+            fprintf(stderr, "malloc() failed with errno %i for %s\n", errno, filepath);
+            return -1;
+        }
+
+        ret = lgetxattr(filepath, name, buff1, length1);
+        if (ret != length1) {
+            print_error(filepath, "lgetxattr", length1);
+            return -1;
+        }
+
+        ret = fwrite(buff1, length1, 1, datafile);
+        if (ret != 1) {
+            print_error(filepath, "fwrite", ret);
+            return -1;
+        }
+        *datafile_pos += length1;
+
+        free(buff1);
+    }
+
+    free(buff0);
+
+    return 0;
+}
+
 int dump_dir(
     const char *filepath,
     FILE *treefile,
@@ -133,6 +240,11 @@ int dump_file(
     }
 
     ret = dump_ioctl(filepath, datafile, datafile_pos, ioc);
+    if (ret) {
+        return ret;
+    }
+
+    ret = dump_xattr(filepath, datafile, datafile_pos);
     if (ret) {
         return ret;
     }

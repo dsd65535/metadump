@@ -268,6 +268,67 @@ int parse_ioctl(
     return 0;
 }
 
+int parse_xattr(
+    FILE *datafile
+) {
+    int ret;
+    char *buff0;
+    char *buff1;
+    ssize_t length0;
+    ssize_t length1;
+
+    ret = fread(&length0, sizeof(length0), 1, datafile);
+    if (ret != 1) {
+        print_error("fread", ret);
+        return -1;
+    }
+
+    buff0 = malloc(length0);
+    if (buff0 == NULL) {
+        fprintf(stderr, "malloc() failed with errno %i\n", errno);
+        return -1;
+    }
+
+    ret = fread(buff0, 1, length0, datafile);
+    if (ret != length0) {
+        print_error("fread", ret);
+        return -1;
+    }
+
+    printf("\nExtended Attributes:\n");
+    for (char *name = buff0; name != buff0 + length0; name = strchr(name, '\0') + 1) {
+        if (name[0] == '\0') {
+            continue;
+        }
+
+        ret = fread(&length1, sizeof(length1), 1, datafile);
+        if (ret != 1) {
+            print_error("fread", ret);
+            return -1;
+        }
+
+        buff1 = malloc(length1);
+        if (buff1 == NULL) {
+            fprintf(stderr, "malloc() failed with errno %i\n", errno);
+            return -1;
+        }
+
+        ret = fread(buff1, length1, 1, datafile);
+        if (ret != 1) {
+            print_error("fread", ret);
+            return -1;
+        }
+
+        printf(" %s: %s\n", name, buff1);
+
+        free(buff1);
+    }
+
+    free(buff0);
+
+    return 0;
+}
+
 int main(
     int argc,
     char *argv[]
@@ -335,6 +396,11 @@ int main(
     }
 
     ret = parse_ioctl(datafile);
+    if (ret) {
+        return ret;
+    }
+
+    ret = parse_xattr(datafile);
     if (ret) {
         return ret;
     }
