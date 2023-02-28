@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -13,6 +14,9 @@
 #include <linux/fs.h>
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
+
+int dev_major;
+int dev_minor;
 
 ssize_t llistxattr(
     const char *path,
@@ -230,7 +234,8 @@ int dump_file(
     FILE *datafile,
     int *datafile_pos,
     struct statx *stx,
-    struct ioctl_data *ioc
+    struct ioctl_data *ioc,
+    bool top_level
 ) {
     int ret;
 
@@ -250,6 +255,15 @@ int dump_file(
     }
 
     if S_ISDIR(stx->stx_mode) {
+        if (top_level) {
+            dev_major = stx->stx_dev_major;
+            dev_minor = stx->stx_dev_minor;
+        } else {
+            if (dev_major != stx->stx_dev_major || dev_minor != stx->stx_dev_minor) {
+                fprintf(stderr, "skipping directory %s because it seems to be a mountpoint\n", filepath);
+                return 0;
+            }
+        }
         ret = dump_dir(filepath, treefile, datafile, datafile_pos, stx, ioc);
         if (ret) {
             return ret;
@@ -311,7 +325,7 @@ int dump_dir(
         }
 
         sprintf(fullpath, "%s/%s", filepath, de->d_name);
-        ret = dump_file(fullpath, treefile, datafile, datafile_pos, stx, ioc);
+        ret = dump_file(fullpath, treefile, datafile, datafile_pos, stx, ioc, false);
         if (ret) {
             return ret;
         }
@@ -364,7 +378,7 @@ int main(int argc, char *argv[]) {
     }
     datafile_pos += sizeof(*&VERSION);
 
-    ret = dump_file(argv[3], treefile, datafile, &datafile_pos, &stx, &ioc);
+    ret = dump_file(argv[3], treefile, datafile, &datafile_pos, &stx, &ioc, true);
     if (ret) {
         return ret;
     }
