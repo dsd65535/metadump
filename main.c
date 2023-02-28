@@ -143,10 +143,6 @@ int dump_xattr(
     ssize_t length1;
 
     length0 = llistxattr(filepath, NULL, 0);
-    if (length0 < 0) {
-        print_error(filepath, "llistxattr", length0);
-        return -1;
-    }
 
     ret = fwrite(&length0, sizeof(length0), 1, datafile);
     if (ret != 1) {
@@ -154,6 +150,10 @@ int dump_xattr(
         return -1;
     }
     *datafile_pos += sizeof(length0);
+
+    if (length0 < 1) {
+        return 0;
+    }
 
     buff0 = malloc(length0);
     if (buff0 == NULL) {
@@ -167,8 +167,8 @@ int dump_xattr(
         return -1;
     }
 
-    ret = fwrite(buff0, 1, length0, datafile);
-    if (ret != length0) {
+    ret = fwrite(buff0, length0, 1, datafile);
+    if (ret != 1) {
         print_error(filepath, "fwrite", ret);
         return -1;
     }
@@ -180,10 +180,6 @@ int dump_xattr(
         }
 
         length1 = lgetxattr(filepath, name, NULL, 0);
-        if (length1 < 0) {
-            print_error(filepath, "lgetxattr", length1);
-            return -1;
-        }
 
         ret = fwrite(&length1, sizeof(length1), 1, datafile);
         if (ret != 1) {
@@ -191,6 +187,10 @@ int dump_xattr(
             return -1;
         }
         *datafile_pos += sizeof(length1);
+
+        if (length1 < 1) {
+            continue;
+        }
 
         buff1 = malloc(length1);
         if (buff1 == NULL) {
