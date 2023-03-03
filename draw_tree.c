@@ -43,11 +43,9 @@ int main(int argc, char *argv[]) {
         print_error("fread", ret);
         return -1;
     }
-    for (int i = 0; i < sizeof(version) / sizeof(int); i++) {
-        if (version[i] != VERSION[i]) {
-            fprintf(stderr, "Treefile version %i doesn't match current version %i\n", version[i], VERSION[i]);
-            return -1;
-        }
+    ret = compare_versions(version, VERSION);
+    if (ret) {
+        return ret;
     }
 
     level = 0;
@@ -106,11 +104,9 @@ int main(int argc, char *argv[]) {
         print_error("fread", ret);
         return -1;
     }
-    for (int i = 0; i < sizeof(version) / sizeof(int); i++) {
-        if (version[i] != VERSION[i]) {
-            fprintf(stderr, "Treefile version %i doesn't match current version %i\n", version[i], VERSION[i]);
-            return -1;
-        }
+    ret = compare_versions(version, VERSION);
+    if (ret) {
+        return ret;
     }
 
     fclose(datafile);
