@@ -294,6 +294,21 @@ int parse_xattr(
         return 0;
     }
 
+    ret = fread(&length0, sizeof(length0), 1, datafile);
+    if (ret != 1) {
+        print_error("fread", ret);
+        return -1;
+    }
+
+    if (length0 < 0) {
+        printf(" failed with %i\n", length0);
+        return 0;
+    }
+    if (length0 < 1) {
+        printf("\n");
+        return 0;
+    }
+
     buff0 = malloc(length0);
     if (buff0 == NULL) {
         fprintf(stderr, "malloc() failed with errno %i\n", errno);
@@ -320,6 +335,21 @@ int parse_xattr(
         }
 
         printf(" %s: ", name);
+
+        if (length1 < 0) {
+            printf("failed with %i\n", length1);
+            continue;
+        }
+        if (length1 < 1) {
+            printf("\n");
+            continue;
+        }
+
+        ret = fread(&length1, sizeof(length1), 1, datafile);
+        if (ret != 1) {
+            print_error("fread", ret);
+            return -1;
+        }
 
         if (length1 < 0) {
             printf("failed with %i\n", length1);

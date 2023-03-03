@@ -161,10 +161,18 @@ int dump_xattr(
         return -1;
     }
 
-    ret = llistxattr(filepath, buff0, length0);
-    if (ret != length0) {
-        print_error(filepath, "llistxattr", ret);
+    length0 = llistxattr(filepath, buff0, length0);
+
+    ret = fwrite(&length0, sizeof(length0), 1, datafile);
+    if (ret != 1) {
+        print_error(filepath, "fwrite", ret);
         return -1;
+    }
+    *datafile_pos += sizeof(length0);
+
+    if (length0 < 1) {
+        free(buff0);
+        return 0;
     }
 
     ret = fwrite(buff0, length0, 1, datafile);
@@ -198,10 +206,18 @@ int dump_xattr(
             return -1;
         }
 
-        ret = lgetxattr(filepath, name, buff1, length1);
-        if (ret != length1) {
-            print_error(filepath, "lgetxattr", length1);
+        length1 = lgetxattr(filepath, name, buff1, length1);
+
+        ret = fwrite(&length1, sizeof(length1), 1, datafile);
+        if (ret != 1) {
+            print_error(filepath, "fwrite", ret);
             return -1;
+        }
+        *datafile_pos += sizeof(length1);
+
+        if (length1 < 1) {
+            free(buff1);
+            continue;
         }
 
         ret = fwrite(buff1, length1, 1, datafile);
