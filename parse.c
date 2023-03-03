@@ -393,7 +393,11 @@ int parse_xattr(
             return -1;
         }
 
-        printf("%s\n", buff1);
+        printf("0x");
+        for (char *byte = buff1; byte != buff1 + length1; byte = byte + 1) {
+            printf("%02x", *byte & 0xff);
+        }
+        printf("\n");
 
         free(buff1);
     }
