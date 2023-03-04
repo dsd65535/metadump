@@ -3,7 +3,7 @@
 
 #include <linux/fs.h>
 
-const int VERSION = 0;
+const int VERSION = 1;
 
 const int MARKER_START = 0;
 const int MARKER_END = 1;
