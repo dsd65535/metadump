@@ -19,7 +19,6 @@ void print_error(
 int main(int argc, char *argv[]) {
     int ret;
     FILE *treefile;
-    FILE *datafile;
 
     int version[3];
     int marker;
@@ -27,8 +26,8 @@ int main(int argc, char *argv[]) {
 
     char name[256];
 
-    if (argc != 3) {
-        fprintf(stderr, "Exactly 2 arguments required\n");
+    if (argc != 2) {
+        fprintf(stderr, "Exactly 1 argument required\n");
         return -1;
     }
 
@@ -92,24 +91,6 @@ int main(int argc, char *argv[]) {
     }
 
     fclose(treefile);
-
-    datafile = fopen(argv[2], "rb");
-    if (datafile == NULL) {
-        fprintf(stderr, "Can't open datafile %s\n", argv[2]);
-        return -1;
-    }
-
-    ret = fread(&version, sizeof(version), 1, datafile);
-    if (ret != 1) {
-        print_error("fread", ret);
-        return -1;
-    }
-    ret = compare_versions(version, VERSION);
-    if (ret) {
-        return ret;
-    }
-
-    fclose(datafile);
 
     return 0;
 }
