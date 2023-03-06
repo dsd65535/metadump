@@ -151,6 +151,14 @@ int dump_xattr(
     }
     *datafile_pos += sizeof(length0);
 
+    if (length0 < 0) {
+        ret = fwrite(&errno, sizeof(errno), 1, datafile);
+        if (ret != 1) {
+            print_error(filepath, "fwrite", ret);
+            return -1;
+        }
+        *datafile_pos += sizeof(errno);
+    }
     if (length0 < 1) {
         return 0;
     }
@@ -170,6 +178,14 @@ int dump_xattr(
     }
     *datafile_pos += sizeof(length0);
 
+    if (length0 < 0) {
+        ret = fwrite(&errno, sizeof(errno), 1, datafile);
+        if (ret != 1) {
+            print_error(filepath, "fwrite", ret);
+            return -1;
+        }
+        *datafile_pos += sizeof(errno);
+    }
     if (length0 < 1) {
         free(buff0);
         return 0;
@@ -196,6 +212,14 @@ int dump_xattr(
         }
         *datafile_pos += sizeof(length1);
 
+        if (length1 < 0) {
+            ret = fwrite(&errno, sizeof(errno), 1, datafile);
+            if (ret != 1) {
+                print_error(filepath, "fwrite", ret);
+                return -1;
+            }
+            *datafile_pos += sizeof(errno);
+        }
         if (length1 < 1) {
             continue;
         }
@@ -215,6 +239,14 @@ int dump_xattr(
         }
         *datafile_pos += sizeof(length1);
 
+        if (length1 < 0) {
+            ret = fwrite(&errno, sizeof(errno), 1, datafile);
+            if (ret != 1) {
+                print_error(filepath, "fwrite", ret);
+                return -1;
+            }
+            *datafile_pos += sizeof(errno);
+        }
         if (length1 < 1) {
             free(buff1);
             continue;
