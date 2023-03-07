@@ -37,3 +37,15 @@ int compare_versions(int data_version[], const int parser_version[]) {
 
     return 0;
 }
+
+int update_buff(int new_length, int *old_length, char **buff) {
+    if (new_length > *old_length) {
+        *buff = realloc(*buff, new_length);
+        if (*buff == NULL) {
+            fprintf(stderr, "malloc() failed with errno %i\n", errno);
+            return -1;
+        }
+        *old_length = new_length;
+    }
+    return 0;
+}

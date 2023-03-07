@@ -19,6 +19,10 @@ int dev_major;
 int dev_minor;
 struct statx stx;
 struct ioctl_data ioc;
+char *buff_llistxattr;
+char *buff_lgetxattr;
+int length_buff_llistxattr;
+int length_buff_lgetxattr;
 
 ssize_t llistxattr(
     const char *path,
@@ -137,21 +141,19 @@ int dump_xattr(
     int *datafile_pos
 ) {
     int ret;
-    char *buff0;
-    char *buff1;
-    ssize_t length0;
-    ssize_t length1;
+    ssize_t length_llistxattr;
+    ssize_t length_lgetxattr;
 
-    length0 = llistxattr(filepath, NULL, 0);
+    length_llistxattr = llistxattr(filepath, NULL, 0);
 
-    ret = fwrite(&length0, sizeof(length0), 1, datafile);
+    ret = fwrite(&length_llistxattr, sizeof(length_llistxattr), 1, datafile);
     if (ret != 1) {
         print_error(filepath, "fwrite", ret);
         return -1;
     }
-    *datafile_pos += sizeof(length0);
+    *datafile_pos += sizeof(length_llistxattr);
 
-    if (length0 < 0) {
+    if (length_llistxattr < 0) {
         ret = fwrite(&errno, sizeof(errno), 1, datafile);
         if (ret != 1) {
             print_error(filepath, "fwrite", ret);
@@ -159,26 +161,25 @@ int dump_xattr(
         }
         *datafile_pos += sizeof(errno);
     }
-    if (length0 < 1) {
+    if (length_llistxattr < 1) {
         return 0;
     }
 
-    buff0 = malloc(length0);
-    if (buff0 == NULL) {
-        fprintf(stderr, "malloc() failed with errno %i for %s\n", errno, filepath);
-        return -1;
+    ret = update_buff(length_llistxattr, &length_buff_llistxattr, &buff_llistxattr);
+    if (ret) {
+        return ret;
     }
 
-    length0 = llistxattr(filepath, buff0, length0);
+    length_llistxattr = llistxattr(filepath, buff_llistxattr, length_llistxattr);
 
-    ret = fwrite(&length0, sizeof(length0), 1, datafile);
+    ret = fwrite(&length_llistxattr, sizeof(length_llistxattr), 1, datafile);
     if (ret != 1) {
         print_error(filepath, "fwrite", ret);
         return -1;
     }
-    *datafile_pos += sizeof(length0);
+    *datafile_pos += sizeof(length_llistxattr);
 
-    if (length0 < 0) {
+    if (length_llistxattr < 0) {
         ret = fwrite(&errno, sizeof(errno), 1, datafile);
         if (ret != 1) {
             print_error(filepath, "fwrite", ret);
@@ -186,33 +187,32 @@ int dump_xattr(
         }
         *datafile_pos += sizeof(errno);
     }
-    if (length0 < 1) {
-        free(buff0);
+    if (length_llistxattr < 1) {
         return 0;
     }
 
-    ret = fwrite(buff0, length0, 1, datafile);
+    ret = fwrite(buff_llistxattr, length_llistxattr, 1, datafile);
     if (ret != 1) {
         print_error(filepath, "fwrite", ret);
         return -1;
     }
-    *datafile_pos += length0;
+    *datafile_pos += length_llistxattr;
 
-    for (char *name = buff0; name != buff0 + length0; name = strchr(name, '\0') + 1) {
+    for (char *name = buff_llistxattr; name != buff_llistxattr + length_llistxattr; name = strchr(name, '\0') + 1) {
         if (name[0] == '\0') {
             continue;
         }
 
-        length1 = lgetxattr(filepath, name, NULL, 0);
+        length_lgetxattr = lgetxattr(filepath, name, NULL, 0);
 
-        ret = fwrite(&length1, sizeof(length1), 1, datafile);
+        ret = fwrite(&length_lgetxattr, sizeof(length_lgetxattr), 1, datafile);
         if (ret != 1) {
             print_error(filepath, "fwrite", ret);
             return -1;
         }
-        *datafile_pos += sizeof(length1);
+        *datafile_pos += sizeof(length_lgetxattr);
 
-        if (length1 < 0) {
+        if (length_lgetxattr < 0) {
             ret = fwrite(&errno, sizeof(errno), 1, datafile);
             if (ret != 1) {
                 print_error(filepath, "fwrite", ret);
@@ -220,26 +220,25 @@ int dump_xattr(
             }
             *datafile_pos += sizeof(errno);
         }
-        if (length1 < 1) {
+        if (length_lgetxattr < 1) {
             continue;
         }
 
-        buff1 = malloc(length1);
-        if (buff1 == NULL) {
-            fprintf(stderr, "malloc() failed with errno %i for %s\n", errno, filepath);
-            return -1;
+        ret = update_buff(length_lgetxattr, &length_buff_lgetxattr, &buff_lgetxattr);
+        if (ret) {
+            return ret;
         }
 
-        length1 = lgetxattr(filepath, name, buff1, length1);
+        length_lgetxattr = lgetxattr(filepath, name, buff_lgetxattr, length_lgetxattr);
 
-        ret = fwrite(&length1, sizeof(length1), 1, datafile);
+        ret = fwrite(&length_lgetxattr, sizeof(length_lgetxattr), 1, datafile);
         if (ret != 1) {
             print_error(filepath, "fwrite", ret);
             return -1;
         }
-        *datafile_pos += sizeof(length1);
+        *datafile_pos += sizeof(length_lgetxattr);
 
-        if (length1 < 0) {
+        if (length_lgetxattr < 0) {
             ret = fwrite(&errno, sizeof(errno), 1, datafile);
             if (ret != 1) {
                 print_error(filepath, "fwrite", ret);
@@ -247,22 +246,17 @@ int dump_xattr(
             }
             *datafile_pos += sizeof(errno);
         }
-        if (length1 < 1) {
-            free(buff1);
+        if (length_lgetxattr < 1) {
             continue;
         }
 
-        ret = fwrite(buff1, length1, 1, datafile);
+        ret = fwrite(buff_lgetxattr, length_lgetxattr, 1, datafile);
         if (ret != 1) {
             print_error(filepath, "fwrite", ret);
             return -1;
         }
-        *datafile_pos += length1;
-
-        free(buff1);
+        *datafile_pos += length_lgetxattr;
     }
-
-    free(buff0);
 
     return 0;
 }
@@ -391,6 +385,11 @@ int main(int argc, char *argv[]) {
     FILE *datafile = fopen(argv[2], "wb");
     int datafile_pos = DATA_OFFSET;
 
+    length_buff_llistxattr = 0;
+    length_buff_lgetxattr = 0;
+    buff_llistxattr = malloc(0);
+    buff_lgetxattr = malloc(0);
+
     if (argc != 4) {
         printf("Exactly 3 arguments required\n");
         return -1;
@@ -425,6 +424,9 @@ int main(int argc, char *argv[]) {
 
     fclose(treefile);
     fclose(datafile);
+
+    free(buff_llistxattr);
+    free(buff_lgetxattr);
 
     return 0;
 }
