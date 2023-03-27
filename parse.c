@@ -337,7 +337,7 @@ int main(
     FILE *treefile;
     FILE *datafile;
 
-    int version;
+    int version[3];
     int marker;
 
     if (argc != 4) {
@@ -356,9 +356,9 @@ int main(
         print_error("fread", ret);
         return -1;
     }
-    if (version != VERSION) {
-        fprintf(stderr, "Treefile version %i doesn't match current version %i\n", version, VERSION);
-        return -1;
+    ret = compare_versions(version, VERSION);
+    if (ret) {
+        return ret;
     }
 
     ret = find_file(treefile, argv[3], &marker);
@@ -379,9 +379,9 @@ int main(
         print_error("fread", ret);
         return -1;
     }
-    if (version != VERSION) {
-        fprintf(stderr, "Treefile version %i doesn't match current version %i\n", version, VERSION);
-        return -1;
+    ret = compare_versions(version, VERSION);
+    if (ret) {
+        return ret;
     }
 
     ret = fseek(datafile, marker - DATA_OFFSET, SEEK_SET);

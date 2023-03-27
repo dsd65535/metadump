@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
     FILE *treefile;
     FILE *datafile;
 
-    int version;
+    int version[3];
     int marker;
     int level;
 
@@ -43,9 +43,9 @@ int main(int argc, char *argv[]) {
         print_error("fread", ret);
         return -1;
     }
-    if (version != VERSION) {
-        fprintf(stderr, "Treefile version %i doesn't match current version %i\n", version, VERSION);
-        return -1;
+    ret = compare_versions(version, VERSION);
+    if (ret) {
+        return ret;
     }
 
     level = 0;
@@ -104,9 +104,9 @@ int main(int argc, char *argv[]) {
         print_error("fread", ret);
         return -1;
     }
-    if (version != VERSION) {
-        fprintf(stderr, "Treefile version %i doesn't match current version %i\n", version, VERSION);
-        return -1;
+    ret = compare_versions(version, VERSION);
+    if (ret) {
+        return ret;
     }
 
     fclose(datafile);

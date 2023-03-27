@@ -1,15 +1,16 @@
 #ifndef METADUMP_COMMON_H
 #define METADUMP_COMMON_H
 
+#include <stdio.h>
 #include <linux/fs.h>
 
-const int VERSION = 0;
+extern const int VERSION[3];
 
-const int MARKER_START = 0;
-const int MARKER_END = 1;
-const int DATA_OFFSET = 2;
+extern const int MARKER_START;
+extern const int MARKER_END;
+extern const int DATA_OFFSET;
 
-const int NO_ERROR = 0;
+extern const int NO_ERROR;
 
 struct ioctl_data {
     int flags_ret;
@@ -22,5 +23,7 @@ struct ioctl_data {
     int xattr_errno;
     struct fsxattr xattr_buff;
 };
+
+int compare_versions(int data_version[], const int parser_version[]);
 
 #endif /* METADUMP_COMMON_H */
