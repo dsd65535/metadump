@@ -276,11 +276,48 @@ int parse_xattr(
     char *buff1;
     ssize_t length0;
     ssize_t length1;
+    int errno_out;
 
     ret = fread(&length0, sizeof(length0), 1, datafile);
     if (ret != 1) {
         print_error("fread", ret);
         return -1;
+    }
+
+    printf("\nExtended Attributes:");
+
+    if (length0 < 0) {
+        ret = fread(&errno_out, sizeof(errno_out), 1, datafile);
+        if (ret != 1) {
+            print_error("fread", ret);
+            return -1;
+        }
+        printf(" failed with return code %i and errno %i\n", length0, errno_out);
+        return 0;
+    }
+    if (length0 < 1) {
+        printf("\n");
+        return 0;
+    }
+
+    ret = fread(&length0, sizeof(length0), 1, datafile);
+    if (ret != 1) {
+        print_error("fread", ret);
+        return -1;
+    }
+
+    if (length0 < 0) {
+        ret = fread(&errno_out, sizeof(errno_out), 1, datafile);
+        if (ret != 1) {
+            print_error("fread", ret);
+            return -1;
+        }
+        printf(" failed with return code %i and errno %i\n", length0, errno_out);
+        return 0;
+    }
+    if (length0 < 1) {
+        printf("\n");
+        return 0;
     }
 
     buff0 = malloc(length0);
@@ -289,13 +326,14 @@ int parse_xattr(
         return -1;
     }
 
-    ret = fread(buff0, 1, length0, datafile);
-    if (ret != length0) {
+    ret = fread(buff0, length0, 1, datafile);
+    if (ret != 1) {
         print_error("fread", ret);
         return -1;
     }
 
-    printf("\nExtended Attributes:\n");
+    printf("\n");
+
     for (char *name = buff0; name != buff0 + length0; name = strchr(name, '\0') + 1) {
         if (name[0] == '\0') {
             continue;
@@ -305,6 +343,42 @@ int parse_xattr(
         if (ret != 1) {
             print_error("fread", ret);
             return -1;
+        }
+
+        printf(" %s: ", name);
+
+        if (length1 < 0) {
+            ret = fread(&errno_out, sizeof(errno_out), 1, datafile);
+            if (ret != 1) {
+                print_error("fread", ret);
+                return -1;
+            }
+            printf("failed with return code %i and errno %i\n", length1, errno_out);
+            continue;
+        }
+        if (length1 < 1) {
+            printf("\n");
+            continue;
+        }
+
+        ret = fread(&length1, sizeof(length1), 1, datafile);
+        if (ret != 1) {
+            print_error("fread", ret);
+            return -1;
+        }
+
+        if (length1 < 0) {
+            ret = fread(&errno_out, sizeof(errno_out), 1, datafile);
+            if (ret != 1) {
+                print_error("fread", ret);
+                return -1;
+            }
+            printf("failed with return code %i and errno %i\n", length1, errno_out);
+            continue;
+        }
+        if (length1 < 1) {
+            printf("\n");
+            continue;
         }
 
         buff1 = malloc(length1);
@@ -319,7 +393,11 @@ int parse_xattr(
             return -1;
         }
 
-        printf(" %s: %s\n", name, buff1);
+        printf("0x");
+        for (char *byte = buff1; byte != buff1 + length1; byte = byte + 1) {
+            printf("%02x", *byte & 0xff);
+        }
+        printf("\n");
 
         free(buff1);
     }

@@ -2,6 +2,8 @@
 #define METADUMP_COMMON_H
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
 #include <linux/fs.h>
 
 extern const int VERSION[3];
@@ -25,5 +27,7 @@ struct ioctl_data {
 };
 
 int compare_versions(int data_version[], const int parser_version[]);
+
+int update_buff(int new_length, int *old_length, char **buff);
 
 #endif /* METADUMP_COMMON_H */
