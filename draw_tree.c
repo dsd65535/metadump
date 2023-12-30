@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <errno.h>
+#include <dirent.h>
 
 void print_error(
     const char *func,
@@ -21,10 +22,10 @@ int main(int argc, char *argv[]) {
     FILE *treefile;
 
     int version[3];
-    int marker;
+    int marker_or_datafile_pos;
     int level;
 
-    char name[256];
+    struct dirent de;
 
     if (argc != 2) {
         fprintf(stderr, "Exactly 1 argument required\n");
@@ -49,30 +50,25 @@ int main(int argc, char *argv[]) {
 
     level = 0;
     for (;;) {
-        ret = fread(&marker, 1, sizeof(marker), treefile);
+        ret = fread(&marker_or_datafile_pos, 1, sizeof(marker_or_datafile_pos), treefile);
         if (ret == 0) {
             break;
         }
-        if (ret != sizeof(marker)) {
+        if (ret != sizeof(marker_or_datafile_pos)) {
             print_error("fread", ret);
             return -1;
         }
 
-        if (marker == MARKER_START) {
+        if (marker_or_datafile_pos == MARKER_START) {
             level++;
             continue;
         }
-        if (marker == MARKER_END) {
+        if (marker_or_datafile_pos == MARKER_END) {
             level--;
             continue;
         }
 
-        ret = fread(&name, 19, 1, treefile);
-        if (ret != 1) {
-            print_error("fread", ret);
-            return -1;
-        }
-        ret = fread(&name, 256, 1, treefile);
+        ret = fread(&de, sizeof(de), 1, treefile);
         if (ret != 1) {
             print_error("fread", ret);
             return -1;
@@ -81,13 +77,7 @@ int main(int argc, char *argv[]) {
         for (int idx = 0; idx < level; idx++) {
             printf(" ");
         }
-        printf("%s\n", name);
-
-        ret = fread(&name, 5, 1, treefile);
-        if (ret != 1) {
-            print_error("fread", ret);
-            return -1;
-        }
+        printf("%s\n", de.d_name);
     }
 
     fclose(treefile);
