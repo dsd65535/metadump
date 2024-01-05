@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <linux/fs.h>
 
+#define MD_BUFF_SIZE 512
+
 extern const int VERSION[3];
 
 extern const int MARKER_START;

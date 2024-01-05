@@ -13,6 +13,7 @@
 #include <linux/fs.h>
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
+#include <openssl/evp.h>
 
 int dev_major;
 int dev_minor;
@@ -85,13 +86,19 @@ int dump_statx(
     return 0;
 }
 
-int dump_ioctl(
+int dump_ioctl_and_md5(
     const char *filepath,
     FILE *datafile,
     int *datafile_pos
 ) {
     int ret;
     int fd;
+
+    EVP_MD_CTX *mdctx;
+    char buff[MD_BUFF_SIZE];
+    ssize_t bytes;
+    unsigned char md_value[EVP_MAX_MD_SIZE];
+    unsigned int md_len;
 
     fd = open(filepath, O_RDONLY | O_NONBLOCK | O_LARGEFILE | O_NOFOLLOW);
 
@@ -107,6 +114,7 @@ int dump_ioctl(
     ret = fwrite(&NO_ERROR, sizeof(errno), 1, datafile);
     if (ret != 1) {
         print_error(filepath, "fwrite", ret);
+        close(fd);
         return -1;
     }
     *datafile_pos += sizeof(errno);
@@ -125,10 +133,58 @@ int dump_ioctl(
     ret = fwrite(&ioc, sizeof(ioc), 1, datafile);
     if (ret != 1) {
         print_error(filepath, "fwrite", ret);
+        close(fd);
         return -1;
     }
     *datafile_pos += sizeof(ioc);
 
+    mdctx = EVP_MD_CTX_new();
+
+    ret = EVP_DigestInit_ex2(mdctx, EVP_md5(), NULL);
+    if (ret != 1) {
+        print_error(filepath, "EVP_DigestInit_ex2", ret);
+        EVP_MD_CTX_free(mdctx);
+        close(fd);
+        return -1;
+    }
+
+    bytes = read(fd, buff, sizeof(buff));
+    while (bytes > 0) {
+        ret = EVP_DigestUpdate(mdctx, buff, bytes);
+        if (ret != 1) {
+            print_error(filepath, "EVP_DigestUpdate", ret);
+            EVP_MD_CTX_free(mdctx);
+            close(fd);
+            return -1;
+        }
+        bytes = read(fd, buff, sizeof(buff));
+    }
+
+    ret = EVP_DigestFinal_ex(mdctx, md_value, &md_len);
+    if (ret != 1) {
+        print_error(filepath, "EVP_DigestFinal_ex", ret);
+        EVP_MD_CTX_free(mdctx);
+        close(fd);
+        return -1;
+    }
+
+    ret = fwrite(&md_len, sizeof(md_len), 1, datafile);
+    if (ret != 1) {
+        print_error(filepath, "fwrite", ret);
+        close(fd);
+        return -1;
+    }
+    *datafile_pos += sizeof(md_len);
+
+    ret = fwrite(md_value, md_len, 1, datafile);
+    if (ret != 1) {
+        print_error(filepath, "fwrite", ret);
+        close(fd);
+        return -1;
+    }
+    *datafile_pos += md_len;
+
+    EVP_MD_CTX_free(mdctx);
     close(fd);
 
     return 0;
@@ -281,7 +337,7 @@ int dump_file(
         return ret;
     }
 
-    ret = dump_ioctl(filepath, datafile, datafile_pos);
+    ret = dump_ioctl_and_md5(filepath, datafile, datafile_pos);
     if (ret) {
         return ret;
     }

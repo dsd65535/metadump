@@ -6,6 +6,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <string.h>
+#include <openssl/evp.h>
 
 void print_error(
     const char *func,
@@ -206,12 +207,15 @@ int parse_statx(
     return 0;
 }
 
-int parse_ioctl(
+int parse_ioctl_and_md5(
     FILE *datafile
 ) {
     int ret;
     int open_errno;
     struct ioctl_data ioc;
+
+    char md_value[EVP_MAX_MD_SIZE];
+    int md_len;
 
     ret = fread(&open_errno, sizeof(errno), 1, datafile);
     if (ret != 1) {
@@ -274,6 +278,30 @@ int parse_ioctl(
         printf("  projid:\t%u\n", ioc.xattr_buff.fsx_projid);
         printf("  cowextsize:\t%u\n", ioc.xattr_buff.fsx_cowextsize);
     }
+
+    ret = fread(&md_len, sizeof(md_len), 1, datafile);
+    if (ret != 1) {
+        print_error("fread", ret);
+        return -1;
+    }
+
+    if (md_len > EVP_MAX_MD_SIZE) {
+        printf("md_len too large\n");
+        return -1;
+    }
+
+    ret = fread(md_value, md_len, 1, datafile);
+    if (ret != 1) {
+        print_error("fread", ret);
+        return -1;
+    }
+
+    printf("\n");
+    printf("MD5 Message Digest: ");
+    for (char *byte = md_value; byte != md_value + md_len; byte = byte + 1) {
+        printf("%02x", *byte & 0xff);
+    }
+    printf("\n");
 
     return 0;
 }
@@ -483,7 +511,7 @@ int main(
         return ret;
     }
 
-    ret = parse_ioctl(datafile);
+    ret = parse_ioctl_and_md5(datafile);
     if (ret) {
         return ret;
     }
