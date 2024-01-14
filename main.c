@@ -94,6 +94,7 @@ int dump_ioctl_and_md5(
     int ret;
     int fd;
 
+    FILE *file;
     EVP_MD_CTX *mdctx;
     char buff[MD_BUFF_SIZE];
     ssize_t bytes;
@@ -138,40 +139,52 @@ int dump_ioctl_and_md5(
     }
     *datafile_pos += sizeof(ioc);
 
+    file = fdopen(fd, "r");
+    if (!file) {
+        fprintf(
+            stderr,
+            "fdopen() failed with errno %i for %s\n",
+            errno,
+            filepath
+        );
+        close(fd);
+        return -1;
+    }
+
     mdctx = EVP_MD_CTX_new();
 
     ret = EVP_DigestInit_ex2(mdctx, EVP_md5(), NULL);
     if (ret != 1) {
         print_error(filepath, "EVP_DigestInit_ex2", ret);
         EVP_MD_CTX_free(mdctx);
-        close(fd);
+        fclose(file);
         return -1;
     }
 
-    bytes = read(fd, buff, sizeof(buff));
+    bytes = fread(buff, 1, sizeof(buff), file);
     while (bytes > 0) {
         ret = EVP_DigestUpdate(mdctx, buff, bytes);
         if (ret != 1) {
             print_error(filepath, "EVP_DigestUpdate", ret);
             EVP_MD_CTX_free(mdctx);
-            close(fd);
+            fclose(file);
             return -1;
         }
-        bytes = read(fd, buff, sizeof(buff));
+        bytes = fread(buff, 1, sizeof(buff), file);
     }
 
     ret = EVP_DigestFinal_ex(mdctx, md_value, &md_len);
     if (ret != 1) {
         print_error(filepath, "EVP_DigestFinal_ex", ret);
         EVP_MD_CTX_free(mdctx);
-        close(fd);
+        fclose(file);
         return -1;
     }
 
     ret = fwrite(&md_len, sizeof(md_len), 1, datafile);
     if (ret != 1) {
         print_error(filepath, "fwrite", ret);
-        close(fd);
+        fclose(file);
         return -1;
     }
     *datafile_pos += sizeof(md_len);
@@ -179,13 +192,13 @@ int dump_ioctl_and_md5(
     ret = fwrite(md_value, md_len, 1, datafile);
     if (ret != 1) {
         print_error(filepath, "fwrite", ret);
-        close(fd);
+        fclose(file);
         return -1;
     }
     *datafile_pos += md_len;
 
     EVP_MD_CTX_free(mdctx);
-    close(fd);
+    fclose(file);
 
     return 0;
 }
