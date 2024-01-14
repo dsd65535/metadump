@@ -134,57 +134,67 @@ int parse_statx(
     FILE *datafile
 ) {
     int ret;
-    struct statx stx;
+    struct statx_data stx;
 
     ret = fread(&stx, sizeof(stx), 1, datafile);
     if (ret != 1) {
         print_error("fread", ret);
         return -1;
     }
+
+    if (stx.ret) {
+        printf(
+            "\nStatX failed with return code %i and errno %i\n",
+            stx.ret,
+            stx._errno
+        );
+        return 0;
+    }
+
     printf("\nStatX:\n");
 
-    printf(" Size:  \t%u", stx.stx_size);
-    check_statx_mask(&stx.stx_mask, STATX_SIZE);
-    printf(" Blocks:\t%u", stx.stx_blocks);
-    check_statx_mask(&stx.stx_mask, STATX_BLOCKS);
+    printf(" Size:  \t%u", stx.buff.stx_size);
+    check_statx_mask(&stx.buff.stx_mask, STATX_SIZE);
+    printf(" Blocks:\t%u", stx.buff.stx_blocks);
+    check_statx_mask(&stx.buff.stx_mask, STATX_BLOCKS);
 
-    printf(" Inode: \t%u", stx.stx_ino);
-    check_statx_mask(&stx.stx_mask, STATX_INO);
-    printf(" Links: \t%u", stx.stx_nlink);
-    check_statx_mask(&stx.stx_mask, STATX_NLINK);
+    printf(" Inode: \t%u", stx.buff.stx_ino);
+    check_statx_mask(&stx.buff.stx_mask, STATX_INO);
+    printf(" Links: \t%u", stx.buff.stx_nlink);
+    check_statx_mask(&stx.buff.stx_mask, STATX_NLINK);
 
-    printf(" Type:  \t%o", stx.stx_mode & S_IFMT);
-    check_statx_mask(&stx.stx_mask, STATX_TYPE);
-    printf(" Mode:  \t%o", stx.stx_mode & ~S_IFMT);
-    check_statx_mask(&stx.stx_mask, STATX_MODE);
-    printf(" Uid:   \t%u", stx.stx_uid);
-    check_statx_mask(&stx.stx_mask, STATX_UID);
-    printf(" Gid:   \t%u", stx.stx_gid);
-    check_statx_mask(&stx.stx_mask, STATX_GID);
+    printf(" Type:  \t%o", stx.buff.stx_mode & S_IFMT);
+    check_statx_mask(&stx.buff.stx_mask, STATX_TYPE);
+    printf(" Mode:  \t%o", stx.buff.stx_mode & ~S_IFMT);
+    check_statx_mask(&stx.buff.stx_mask, STATX_MODE);
+    printf(" Uid:   \t%u", stx.buff.stx_uid);
+    check_statx_mask(&stx.buff.stx_mask, STATX_UID);
+    printf(" Gid:   \t%u", stx.buff.stx_gid);
+    check_statx_mask(&stx.buff.stx_mask, STATX_GID);
 
-    printf(" Access:\t%i.%09u", stx.stx_atime.tv_sec, stx.stx_atime.tv_nsec);
-    check_statx_mask(&stx.stx_mask, STATX_ATIME);
-    printf(" Modify:\t%i.%09u", stx.stx_mtime.tv_sec, stx.stx_mtime.tv_nsec);
-    check_statx_mask(&stx.stx_mask, STATX_MTIME);
-    printf(" Change:\t%i.%09u", stx.stx_ctime.tv_sec, stx.stx_ctime.tv_nsec);
-    check_statx_mask(&stx.stx_mask, STATX_CTIME);
-    printf(" Birth: \t%i.%09u", stx.stx_btime.tv_sec, stx.stx_btime.tv_nsec);
-    check_statx_mask(&stx.stx_mask, STATX_BTIME);
+    printf(" Access:\t%i.%09u", stx.buff.stx_atime.tv_sec, stx.buff.stx_atime.tv_nsec);
+    check_statx_mask(&stx.buff.stx_mask, STATX_ATIME);
+    printf(" Modify:\t%i.%09u", stx.buff.stx_mtime.tv_sec, stx.buff.stx_mtime.tv_nsec);
+    check_statx_mask(&stx.buff.stx_mask, STATX_MTIME);
+    printf(" Change:\t%i.%09u", stx.buff.stx_ctime.tv_sec, stx.buff.stx_ctime.tv_nsec);
+    check_statx_mask(&stx.buff.stx_mask, STATX_CTIME);
+    printf(" Birth: \t%i.%09u", stx.buff.stx_btime.tv_sec, stx.buff.stx_btime.tv_nsec);
+    check_statx_mask(&stx.buff.stx_mask, STATX_BTIME);
 
-    printf(" IO Block:\t%u\n", stx.stx_blksize);
-    printf(" Device:\t%02x:%02x\n", stx.stx_dev_major, stx.stx_dev_minor);
-    printf(" Rdev:  \t%02x:%02x\n", stx.stx_rdev_major, stx.stx_rdev_minor);
+    printf(" IO Block:\t%u\n", stx.buff.stx_blksize);
+    printf(" Device:\t%02x:%02x\n", stx.buff.stx_dev_major, stx.buff.stx_dev_minor);
+    printf(" Rdev:  \t%02x:%02x\n", stx.buff.stx_rdev_major, stx.buff.stx_rdev_minor);
 
     printf(" Flags:  \t");
-    for (int idx = 0; idx < 8 * sizeof(stx.stx_attributes_mask); idx++) {
-        if (stx.stx_attributes_mask & (1 << idx)) {
-            if (stx.stx_attributes & (1 << idx)) {
+    for (int idx = 0; idx < 8 * sizeof(stx.buff.stx_attributes_mask); idx++) {
+        if (stx.buff.stx_attributes_mask & (1 << idx)) {
+            if (stx.buff.stx_attributes & (1 << idx)) {
                 printf("+");
             } else {
                 printf("-");
             }
         } else {
-            if (stx.stx_attributes & (1 << idx)) {
+            if (stx.buff.stx_attributes & (1 << idx)) {
                 printf("X");
             } else {
                 printf(".");

@@ -1,6 +1,8 @@
 #ifndef METADUMP_COMMON_H
 #define METADUMP_COMMON_H
 
+#include "statx-wrapper.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -13,6 +15,12 @@ extern const int MARKER_END;
 extern const int DATA_OFFSET;
 
 extern const int NO_ERROR;
+
+struct statx_data {
+    int ret;
+    int _errno;
+    struct statx buff;
+};
 
 struct ioctl_data {
     int flags_ret;

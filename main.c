@@ -1,7 +1,6 @@
 #define _GNU_SOURCE
 
 #include "common.h"
-#include "statx-wrapper.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,7 +16,7 @@
 
 int dev_major;
 int dev_minor;
-struct statx stx;
+struct statx_data stx;
 struct ioctl_data ioc;
 char *buff_llistxattr;
 char *buff_lgetxattr;
@@ -63,17 +62,17 @@ int dump_statx(
 ) {
     int ret;
 
-    memset(&stx, 0xbf, sizeof(stx));
-    ret = statx(
+    memset(&stx, 0x00, sizeof(stx));
+    stx.ret = statx(
         AT_FDCWD,
         filepath,
         AT_NO_AUTOMOUNT | AT_SYMLINK_NOFOLLOW | AT_STATX_FORCE_SYNC,
         STATX_ALL,
-        &stx
+        &stx.buff
     );
-    if (ret) {
-        print_error(filepath, "statx", ret);
-        return -1;
+    stx._errno = errno;
+    if (stx.ret) {
+        print_error(filepath, "statx", stx.ret);
     }
 
     ret = fwrite(&stx, sizeof(stx), 1, datafile);
@@ -292,12 +291,12 @@ int dump_file(
         return ret;
     }
 
-    if S_ISDIR(stx.stx_mode) {
+    if (!stx.ret && S_ISDIR(stx.buff.stx_mode)) {
         if (top_level) {
-            dev_major = stx.stx_dev_major;
-            dev_minor = stx.stx_dev_minor;
+            dev_major = stx.buff.stx_dev_major;
+            dev_minor = stx.buff.stx_dev_minor;
         } else {
-            if (dev_major != stx.stx_dev_major || dev_minor != stx.stx_dev_minor) {
+            if (dev_major != stx.buff.stx_dev_major || dev_minor != stx.buff.stx_dev_minor) {
                 fprintf(stderr, "skipping directory %s because it seems to be a mountpoint\n", filepath);
                 return 0;
             }
