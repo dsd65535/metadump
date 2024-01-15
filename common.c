@@ -1,6 +1,6 @@
 #include "common.h"
 
-const int VERSION[] = {0, 2, 0};
+const int VERSION[] = {0, 3, 0};
 
 const int MARKER_START = 0;
 const int MARKER_END = 1;

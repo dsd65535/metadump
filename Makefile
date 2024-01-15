@@ -2,6 +2,8 @@
 
 .PHONY: all clean
 
+LDLIBS += -lcrypto
+
 all: metadump parse draw_tree
 
 metadump: main.o common.o statx-wrapper.o

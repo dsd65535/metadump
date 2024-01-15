@@ -1,10 +1,14 @@
 #ifndef METADUMP_COMMON_H
 #define METADUMP_COMMON_H
 
+#include "statx-wrapper.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <linux/fs.h>
+
+#define MD_BUFF_SIZE 512
 
 extern const int VERSION[3];
 
@@ -13,6 +17,12 @@ extern const int MARKER_END;
 extern const int DATA_OFFSET;
 
 extern const int NO_ERROR;
+
+struct statx_data {
+    int ret;
+    int _errno;
+    struct statx buff;
+};
 
 struct ioctl_data {
     int flags_ret;

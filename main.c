@@ -1,7 +1,6 @@
 #define _GNU_SOURCE
 
 #include "common.h"
-#include "statx-wrapper.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,10 +13,11 @@
 #include <linux/fs.h>
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
+#include <openssl/evp.h>
 
 int dev_major;
 int dev_minor;
-struct statx stx;
+struct statx_data stx;
 struct ioctl_data ioc;
 char *buff_llistxattr;
 char *buff_lgetxattr;
@@ -63,17 +63,17 @@ int dump_statx(
 ) {
     int ret;
 
-    memset(&stx, 0xbf, sizeof(stx));
-    ret = statx(
+    memset(&stx, 0x00, sizeof(stx));
+    stx.ret = statx(
         AT_FDCWD,
         filepath,
         AT_NO_AUTOMOUNT | AT_SYMLINK_NOFOLLOW | AT_STATX_FORCE_SYNC,
         STATX_ALL,
-        &stx
+        &stx.buff
     );
-    if (ret) {
-        print_error(filepath, "statx", ret);
-        return -1;
+    stx._errno = errno;
+    if (stx.ret) {
+        print_error(filepath, "statx", stx.ret);
     }
 
     ret = fwrite(&stx, sizeof(stx), 1, datafile);
@@ -86,13 +86,20 @@ int dump_statx(
     return 0;
 }
 
-int dump_ioctl(
+int dump_ioctl_and_md5(
     const char *filepath,
     FILE *datafile,
     int *datafile_pos
 ) {
     int ret;
     int fd;
+
+    FILE *file;
+    EVP_MD_CTX *mdctx;
+    char buff[MD_BUFF_SIZE];
+    ssize_t bytes;
+    unsigned char md_value[EVP_MAX_MD_SIZE];
+    unsigned int md_len;
 
     fd = open(filepath, O_RDONLY | O_NONBLOCK | O_LARGEFILE | O_NOFOLLOW);
 
@@ -108,6 +115,7 @@ int dump_ioctl(
     ret = fwrite(&NO_ERROR, sizeof(errno), 1, datafile);
     if (ret != 1) {
         print_error(filepath, "fwrite", ret);
+        close(fd);
         return -1;
     }
     *datafile_pos += sizeof(errno);
@@ -126,11 +134,71 @@ int dump_ioctl(
     ret = fwrite(&ioc, sizeof(ioc), 1, datafile);
     if (ret != 1) {
         print_error(filepath, "fwrite", ret);
+        close(fd);
         return -1;
     }
     *datafile_pos += sizeof(ioc);
 
-    close(fd);
+    file = fdopen(fd, "r");
+    if (!file) {
+        fprintf(
+            stderr,
+            "fdopen() failed with errno %i for %s\n",
+            errno,
+            filepath
+        );
+        close(fd);
+        return -1;
+    }
+
+    mdctx = EVP_MD_CTX_new();
+
+    ret = EVP_DigestInit_ex2(mdctx, EVP_md5(), NULL);
+    if (ret != 1) {
+        print_error(filepath, "EVP_DigestInit_ex2", ret);
+        EVP_MD_CTX_free(mdctx);
+        fclose(file);
+        return -1;
+    }
+
+    bytes = fread(buff, 1, sizeof(buff), file);
+    while (bytes > 0) {
+        ret = EVP_DigestUpdate(mdctx, buff, bytes);
+        if (ret != 1) {
+            print_error(filepath, "EVP_DigestUpdate", ret);
+            EVP_MD_CTX_free(mdctx);
+            fclose(file);
+            return -1;
+        }
+        bytes = fread(buff, 1, sizeof(buff), file);
+    }
+
+    ret = EVP_DigestFinal_ex(mdctx, md_value, &md_len);
+    if (ret != 1) {
+        print_error(filepath, "EVP_DigestFinal_ex", ret);
+        EVP_MD_CTX_free(mdctx);
+        fclose(file);
+        return -1;
+    }
+
+    ret = fwrite(&md_len, sizeof(md_len), 1, datafile);
+    if (ret != 1) {
+        print_error(filepath, "fwrite", ret);
+        fclose(file);
+        return -1;
+    }
+    *datafile_pos += sizeof(md_len);
+
+    ret = fwrite(md_value, md_len, 1, datafile);
+    if (ret != 1) {
+        print_error(filepath, "fwrite", ret);
+        fclose(file);
+        return -1;
+    }
+    *datafile_pos += md_len;
+
+    EVP_MD_CTX_free(mdctx);
+    fclose(file);
 
     return 0;
 }
@@ -282,7 +350,7 @@ int dump_file(
         return ret;
     }
 
-    ret = dump_ioctl(filepath, datafile, datafile_pos);
+    ret = dump_ioctl_and_md5(filepath, datafile, datafile_pos);
     if (ret) {
         return ret;
     }
@@ -292,12 +360,12 @@ int dump_file(
         return ret;
     }
 
-    if S_ISDIR(stx.stx_mode) {
+    if (!stx.ret && S_ISDIR(stx.buff.stx_mode)) {
         if (top_level) {
-            dev_major = stx.stx_dev_major;
-            dev_minor = stx.stx_dev_minor;
+            dev_major = stx.buff.stx_dev_major;
+            dev_minor = stx.buff.stx_dev_minor;
         } else {
-            if (dev_major != stx.stx_dev_major || dev_minor != stx.stx_dev_minor) {
+            if (dev_major != stx.buff.stx_dev_major || dev_minor != stx.buff.stx_dev_minor) {
                 fprintf(stderr, "skipping directory %s because it seems to be a mountpoint\n", filepath);
                 return 0;
             }
